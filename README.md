@@ -40,6 +40,11 @@ This project provides an API for data extraction from images and PDFs using YOLO
     uvicorn main:app --host 0.0.0.0 --port 8000
     ```
 
+    Or:
+    ```bash
+    python3 main.py
+    ```
+
 2. **Send a POST request**:
     You can send a `POST` request to the `/extract_data` endpoint using `curl` or an HTTP client like Postman. Example using `curl`:
 

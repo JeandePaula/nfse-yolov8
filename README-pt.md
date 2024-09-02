@@ -40,6 +40,11 @@ Este projeto fornece uma API para extração de dados de imagens e PDFs utilizan
     uvicorn main:app --host 0.0.0.0 --port 8000
     ```
 
+    Ou:
+    ```bash
+    python3 main.py
+    ```
+
 2. **Enviar uma requisição POST**:
     Você pode enviar uma requisição `POST` para o endpoint `/extract_data` utilizando `curl` ou um cliente HTTP como o Postman. Exemplo utilizando `curl`:
 
