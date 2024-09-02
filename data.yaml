@@ -1,0 +1,7 @@
+path: ./
+train: train
+val: train
+test: 
+
+nc: 38
+names: ['codigo-servico-descricao', 'is-documento', 'is-nome', 'nf-code-verificacao', 'nf-dt-emissao', 'nf-numero', 'nf-time-documento', 'ps-cep', 'ps-documento', 'ps-email', 'ps-endereco', 'ps-inscricao-munipal', 'ps-municipio', 'ps-nome', 'ps-telefone', 'ps-uf', 'servico-descricao', 'ts-cep', 'ts-documento', 'ts-email', 'ts-endereco', 'ts-inscricao-municipal', 'ts-municipio', 'ts-nome', 'ts-telefone', 'ts-uf', 'vl-base-calculo', 'vl-cofins', 'vl-credito', 'vl-csll', 'vl-desconto-incond', 'vl-inss', 'vl-irrf', 'vl-iss', 'vl-percen-aliquota', 'vl-pis-pasep', 'vl-servico', 'vl-total-deducoes']
