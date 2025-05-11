@@ -7,11 +7,11 @@ from pdf2image import convert_from_bytes
 
 app = FastAPI()
 
-# Tamanho máximo do arquivo permitido (5 MB)
+# Maximum allowed file size (5 MB)
 MAX_FILE_SIZE_MB = 5
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
-# Função para pré-processar a imagem usando OpenCV
+# Function to preprocess the image using OpenCV
 def preprocess_image(image):
     image = cv2.resize(image, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
@@ -21,7 +21,7 @@ def preprocess_image(image):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     return image
 
-# Função para extrair texto usando pytesseract
+# Function to extract text using pytesseract
 def extract_text(image, changeConfigToOrientation=False):
     custom_config = '--psm 6 --oem 3' if changeConfigToOrientation else '--psm 7'
     text = pytesseract.image_to_string(image, lang='por', config=custom_config).strip()
@@ -36,22 +36,22 @@ def orientation_is_valid(image):
     text = extract_text(img, changeConfigToOrientation=True)
     return any(keyword.lower() in text.lower() for keyword in keywords)
 
-# Função para converter PDF em imagens
+# Function to convert PDF to images
 def convert_pdf_to_images(pdf_bytes):
     images = convert_from_bytes(pdf_bytes)
     return [np.array(image) for image in images]
 
 @app.post("/extract_data")
 async def extract_and_save_text_from_regions(file: UploadFile = File(...)):
-    # Verifica o tamanho do arquivo
+    # Check the file size
     file_size = len(await file.read())
     if file_size > MAX_FILE_SIZE_BYTES:
         raise HTTPException(status_code=400, detail="File size exceeds the 5 MB limit.")
     
-    # Reabre o arquivo para processamento posterior
+    # Reopen the file for further processing
     file.file.seek(0)
     
-    # Verifica se o arquivo é uma imagem ou um PDF
+    # Check if the file is an image or a PDF
     if file.content_type == 'application/pdf':
         pdf_bytes = await file.read()
         images = convert_pdf_to_images(pdf_bytes)
