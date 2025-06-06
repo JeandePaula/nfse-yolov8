@@ -1,9 +1,11 @@
 from ultralytics import YOLO
 from fastapi import FastAPI, UploadFile, File, HTTPException
 import cv2
-import pytesseract
 import numpy as np
-from pdf2image import convert_from_bytes
+
+from image_utils import preprocess_image, convert_pdf_to_images
+from ocr_utils import extract_text
+from validation import orientation_is_valid
 
 app = FastAPI()
 
@@ -11,35 +13,6 @@ app = FastAPI()
 MAX_FILE_SIZE_MB = 5
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
-# Function to preprocess the image using OpenCV
-def preprocess_image(image):
-    image = cv2.resize(image, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-    image = cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
-    image = cv2.convertScaleAbs(image, alpha=1.5, beta=0)
-    # image = cv2.cvtColor(image, cv2.COLOR_BGR2XYZ)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    return image
-
-# Function to extract text using pytesseract
-def extract_text(image, changeConfigToOrientation=False):
-    custom_config = '--psm 6 --oem 3' if changeConfigToOrientation else '--psm 7'
-    text = pytesseract.image_to_string(image, lang='por', config=custom_config).strip()
-    return text
-
-def orientation_is_valid(image):
-    keywords = [
-        "PREFEITURA", "PRESTADOR", "TOMADOR", "VALOR", 
-        "NOTA", "FISCAL", "CPF", "CNPJ",
-    ]
-    img = preprocess_image(image)
-    text = extract_text(img, changeConfigToOrientation=True)
-    return any(keyword.lower() in text.lower() for keyword in keywords)
-
-# Function to convert PDF to images
-def convert_pdf_to_images(pdf_bytes):
-    images = convert_from_bytes(pdf_bytes)
-    return [np.array(image) for image in images]
 
 @app.post("/extract_data")
 async def extract_and_save_text_from_regions(file: UploadFile = File(...)):
