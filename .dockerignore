@@ -1,0 +1,7 @@
+*
+!pyproject.toml
+!uv.lock
+!nfse/
+!nfse/*.py
+!main.py
+!best-nfse.pt

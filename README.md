@@ -1,102 +1,139 @@
-# NFS-e Yolov8
+# NFS-e Extractor
 
-[Leia em Português](README-pt.md)
+[Português](README-pt.md) · [CI](https://github.com/JeandePaula/nfse-yolov8/actions)
 
-## Overview
-This project provides an API for data extraction from images and PDFs using YOLO, FastAPI, and Tesseract.
+A small FastAPI service that detects NFS-e fields with YOLO and reads them with Portuguese Tesseract OCR. Images and PDFs are processed locally. No database, external OCR service or task queue is required.
 
-## Requirements
-- Python >= 3.11
+## Run on Linux / WSL
 
-## Installation
+Requires Python 3.12–3.14 and [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
-1. **Clone the repository**:
-    ```bash
-    git clone https://github.com/JeandePaula/nfse-yolov8.git
-    cd nfse-yolov8
-    ```
+```bash
+git clone https://github.com/JeandePaula/nfse-yolov8.git
+cd nfse-yolov8
+sudo apt-get update
+sudo apt-get install -y tesseract-ocr tesseract-ocr-por libgl1 libglib2.0-0
+uv sync --locked
+uv run uvicorn nfse.api:app --host 127.0.0.1 --port 8000
+```
 
-2. **Create a virtual environment (optional but recommended)**:
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # For Linux/MacOS
-    venv\Scripts\activate  # For Windows
-    ```
+Open [interactive API docs](http://127.0.0.1:8000/docs). `uv run python main.py` and `uv run uvicorn main:app` remain supported. The model is loaded once at startup; missing weights or OCR languages cause a clear startup failure.
 
-3. **Install the required packages**:
-    ```bash
-    pip install -r requirements.txt
-    ```
+## Docker
 
-   Or manually install:
-    ```bash
-    pip install fastapi>=0.112.1 uvicorn>=0.30.6 pytesseract>=0.3.13 ultralytics>=8.2.77 numpy>=1.26.4,<2.0.0 opencv-python>=4.10.0,<5.0.0 python-multipart>=0.0.9 pdf2image>=1.16.3
-    ```
+```bash
+docker build -t nfse .
+docker run --rm -p 127.0.0.1:8000:8000 nfse
+```
 
-## Running the Application
+The container includes the checkpoint, CPU PyTorch, PDFium and Portuguese Tesseract, runs as an unprivileged user, and checks `/health`. Set options with `--env-file .env` after copying `.env.example`. Custom model paths must exist inside the container, for example through a read-only volume mount.
 
-1. **Start the FastAPI server**:
-    ```bash
-    uvicorn main:app --host 0.0.0.0 --port 8000
-    ```
+## API
 
-    Or:
-    ```bash
-    python3 main.py
-    ```
+```bash
+curl --fail-with-body http://127.0.0.1:8000/extract -F 'file=@nota.pdf'
+curl --fail-with-body http://127.0.0.1:8000/extract -F 'file=@nota.png'
+curl http://127.0.0.1:8000/health
+```
 
-2. **Send a POST request**:
-    You can send a `POST` request to the `/extract_data` endpoint using `curl` or an HTTP client like Postman. Example using `curl`:
+`POST /extract` preserves every detection, including repeated labels and separate PDF pages. Example schema (illustrative values):
 
-    - For an image:
-        ```bash
-        curl -X POST "http://0.0.0.0:8000/extract_data" -H "Content-Type: multipart/form-data" -F "file=@/path/to/your/nf-image.jpg"
-        ```
-
-    - For a PDF:
-        ```bash
-        curl -X POST "http://0.0.0.0:8000/extract_data" -H "Content-Type: multipart/form-data" -F "file=@/path/to/your/nf-pdf.pdf"
-        ```
-
-## Expected Output
-
-1. **Generated Image**:
-   After processing, an image named `output_image.png` will be saved in the root of the project, as per the following example:
-   ![Output Image](output_image.png)
-
-2. **Sample JSON Output**:
-    ```json
+```json
+{
+  "pages": [
     {
-        "service-description": "“o e mil e quientos reais)",
-        "iss-value": "75,00",
-        "nf-number": "00000001",
-        "credit-value": "22,50",
-        "service-value": "R$ 1.500,00",
-        "nf-issue-date": "1/6/2006 12:01:40",
-        "total-deductions": "0,00",
-        "tax-percentage-rate": "5,00%",
-        "nf-verification-code": "TPUG-ZK2J",
-        "municipal-registration": "—",
-        "address": "Address: AV SAPOPEMBA 0520 - VILA GUARANI - ZIP: 03374-001",
-        "document-time": "20060601 1200",
-        "service-code-description": "05690 - HIGHER EDUCATION, UNDERGRADUATE COURSES, AND OTHER COURSES",
-        "calculation-base-value": "1.500,00",
-        "issuer-name": "'PF/CNPJ: 64.167.648/0001-33",
-        "issuer-municipal-registration": "1.311.306-8",
-        "recipient-document": "DPF/CNPJ: 007.725.827-73",
-        "recipient-email": "-rmail: sandromunizrochaQBinternet.com.br",
-        "recipient-state": "SP",
-        "recipient-name": "SANDRO MUNIZ ROCHA",
-        "issuer-city": "São Paulo",
-        "issuer-state": "sP"
+      "page": 1,
+      "width": 1240,
+      "height": 1754,
+      "fields": [
+        {
+          "label": "nf-numero",
+          "text": "00000001",
+          "confidence": 0.94,
+          "bbox": [910, 80, 1150, 135]
+        }
+      ]
     }
-    ```
+  ]
+}
+```
 
-## Important Note
-**Note:** The model used in this project was not properly trained due to insufficient images of Service Invoices (NFS). This may result in discrepancies or inaccuracies in the extracted data. It is recommended to improve the model's training with a broader and more diverse dataset to enhance accuracy.
+Labels are the checkpoint's original class names, listed in `data.yaml`; existing spellings are preserved. Coordinates refer to the rendered, EXIF-corrected page. Confidence is the **detector score**, not an OCR accuracy score. No detections produce an empty `fields` array.
 
-## Contribution
-Feel free to open issues and submit pull requests to improve this project.
+`POST /extract_data` retains the original `{label: text}` contract. As before, the last detection wins for duplicate labels, including across pages. New integrations should use `/extract`.
+
+Accepted input: single-frame JPEG, PNG, WebP, TIFF, BMP, and multi-page PDF. Bytes determine the format, independently of the filename or MIME header. Corrupt, encrypted or unsupported documents return errors; multi-frame images must first be converted to PDF.
+
+| Status | Meaning |
+| --- | --- |
+| 400 | Empty file or malformed multipart request |
+| 413 | File, request, page count or pixel limit exceeded |
+| 415 | Unsupported or unrecognizable format |
+| 422 | Unreadable document or missing upload field |
+| 503 | Busy worker; retry after the `Retry-After` interval |
+| 504 | OCR timeout |
+
+## Configuration
+
+Copy `.env.example` to `.env` to override defaults. Environment variables take precedence.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `NFSE_MODEL_PATH` | repository `best-nfse.pt` | Trusted local checkpoint |
+| `NFSE_DEVICE` | `cpu` | Inference device |
+| `NFSE_CONFIDENCE` | `0.25` | Detection threshold |
+| `NFSE_IMAGE_SIZE` | `640` | YOLO input size, multiple of 32 |
+| `NFSE_OCR_LANGUAGE` | `por` | Installed Tesseract language(s) |
+| `NFSE_OCR_TIMEOUT` | `15` | Timeout in seconds per detected region |
+| `NFSE_MAX_FILE_MB` | `5` | File limit in MiB |
+| `NFSE_MAX_PAGES` | `10` | Maximum PDF pages |
+| `NFSE_MAX_PIXELS` | `20000000` | Maximum pixels per page |
+| `NFSE_MAX_DETECTIONS` | `100` | Maximum detections per page |
+| `NFSE_PDF_DPI` | `150` | PDF render resolution |
+
+The HTTP body is limited to the file allowance plus 64 KiB for multipart overhead, including chunked uploads. PDF pages are decoded one at a time. Detection and OCR run outside the async event loop. One extraction runs per process to protect YOLO and PDFium state; overlapping requests receive 503 instead of accumulating work. Additional Uvicorn workers load independent model copies and use more RAM.
+
+There is no built-in authentication. Use a trusted network or an authenticated reverse proxy for deployment. Uploads may be temporarily spooled by the multipart parser and are closed after the request. The application does not save annotated invoices or extracted text; proxy/access-log policies remain the operator's responsibility. EXIF orientation is handled, but arbitrary scanned-page rotation is not corrected. The old keyword-based “orientation validation” was removed because it did not reliably validate orientation or invoice authenticity.
+
+## Model and training
+
+The bundled `best-nfse.pt` is the original YOLOv8 NFS-e checkpoint. Its limited training data still limits accuracy, and it can produce false detections even on blank pages. This rewrite updates the software, not the model's learned quality. No labeled dataset is included, so no retraining or accuracy claim is made. `result/` and `output_image.png` are historical artifacts, not benchmarks for this version.
+
+New training defaults to the current [YOLO26 nano model](https://docs.ultralytics.com/models/yolo26/). Prepare distinct training and validation sets in YOLO format:
+
+```text
+datasets/nfse/
+  images/train/  images/val/
+  labels/train/  labels/val/
+```
+
+Each label file contains `class_id x_center y_center width height`, normalized to 0–1. `data.yaml` preserves the 38 original class IDs. Its `path` is resolved according to Ultralytics dataset settings; use an absolute dataset path when storing data elsewhere. Training and validation must not use the same samples.
+
+```bash
+uv run python train.py --data data.yaml --epochs 100 --device cpu
+# Continue training from the existing architecture instead:
+uv run python train.py --model best-nfse.pt --data data.yaml
+```
+
+Ultralytics downloads the base weights on the first training run. Point `NFSE_MODEL_PATH` to the resulting `best.pt` after evaluating it on held-out invoices. The committed lock uses CPU wheels. For CUDA, change the two PyTorch sources in `pyproject.toml` using the [official installation selector](https://pytorch.org/get-started/locally/), regenerate `uv.lock`, and then select `--device 0` / `NFSE_DEVICE=0`.
+
+## Development
+
+```bash
+uv sync --locked
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest -q
+# Fast tests without loading actual model weights / invoking OCR:
+uv run pytest -q -m 'not integration'
+```
+
+Integration tests require Portuguese Tesseract and DejaVu Sans (`fonts-dejavu-core` on Ubuntu). They exercise the real checkpoint, image/PDF inference, OCR and application startup. They verify functionality, not invoice extraction accuracy. CI runs on Python 3.12 and 3.14 and builds/starts the Docker image.
+
+`nfse/api.py` handles HTTP and startup, `config.py` settings, `documents.py` bounded decoding, `service.py` detection/OCR, and `schemas.py` response types. `train.py` is the independent training command. Runtime dependencies and development tools live in `pyproject.toml`; `uv.lock` pins the complete resolution. To update, run `uv lock --upgrade`, `uv sync --locked`, then the checks above. Dependabot checks monthly.
+
+Versions were resolved from current stable releases on 2026-10-03: FastAPI 0.142.2, Ultralytics 8.4.172, PyTorch 2.14.1, NumPy 2.5.3, OpenCV 5.0.0.93 and PDFium bindings 5.13.0. The lockfile is authoritative.
 
 ## License
-This project is licensed under the terms of the MIT license.
+
+The repository's original MIT license is retained in [LICENSE](LICENSE). Dependencies and model artifacts have their own terms; see [Ultralytics licensing](https://docs.ultralytics.com/help/license/).
